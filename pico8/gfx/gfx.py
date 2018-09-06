@@ -13,7 +13,6 @@ __all__ = ['Gfx']
 
 from .. import util
 
-
 # Constants for the Pico-8 color values.
 BLACK = 0
 DARK_BLUE = 1
@@ -49,7 +48,7 @@ class Gfx(util.BaseSection):
           A Gfx instance.
         """
         return cls(data=bytearray(b'\x00' * 128 * 64), version=version)
-    
+
     @classmethod
     def from_lines(cls, lines, version):
         """Create an instance based on .p8 data lines.
@@ -67,10 +66,10 @@ class Gfx(util.BaseSection):
         for l in lines:
             if len(l) != 129:
                 continue
-            
+
             larray = list(l.rstrip())
-            for i in range(0,128,2):
-                (larray[i], larray[i+1]) = (larray[i+1], larray[i])
+            for i in range(0, 128, 2):
+                (larray[i], larray[i + 1]) = (larray[i + 1], larray[i])
 
             larray_str = str(bytes(larray), encoding='ascii')
             datastrs.append(bytearray.fromhex(larray_str))
@@ -92,7 +91,7 @@ class Gfx(util.BaseSection):
             newdata = []
             for b in self._data[start_i:end_i]:
                 newdata.append((b & 0x0f) << 4 | (b & 0xf0) >> 4)
-                
+
             yield bytes(util.bytes_to_hex(bytes(newdata)), encoding='ascii') + b'\n'
 
     def get_sprite(self, id, tile_width=1, tile_height=1):
@@ -202,8 +201,8 @@ class Gfx(util.BaseSection):
         for y, row in enumerate(sprite):
             for x, val in enumerate(row):
                 if ((val == TRANSPARENT) or
-                    ((first_y_coord + y) > 128) or
-                    ((first_x_coord + x) > 128)):
+                        ((first_y_coord + y) > 128) or
+                        ((first_x_coord + x) > 128)):
                     continue
                 data_loc = (first_y_coord + y) * 64 + (first_x_coord + x) // 2
                 b = self._data[data_loc]
