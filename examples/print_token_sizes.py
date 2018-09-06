@@ -47,10 +47,10 @@ def get_token_count(tokens):
     return c
 
 
-def print_token_counts(v, counts, name):
+def print_token_counts(v, counts):
     if isinstance(v, parser.Node):
         for f in v._fields:
-            print_token_counts(getattr(v, f), counts, name)
+            print_token_counts(getattr(v, f), counts)
     elif isinstance(v, list) or isinstance(v, tuple):
         for v_ in v:
             if isinstance(v_, parser.StatFunction):
@@ -60,7 +60,23 @@ def print_token_counts(v, counts, name):
                     name += ":" + v_.funcname.methodname.value.decode('latin1')
                 counts[name] = get_token_count(v_.tokens)
             else:
-                counts[name] = counts.get(name, 0) + get_token_count(v_.tokens)
+                if isinstance(v_, parser.StatAssignment):
+                    var = v_.varlist.vars[0]
+                    if hasattr(var, 'name'):
+                        varname = v_.varlist.vars[0].name.value.decode('latin1')
+                        exp = v_.explist.exps[0].value
+
+                        count = get_token_count(v_.tokens)
+
+                        if isinstance(exp, parser.FunctionCall) and isinstance(exp.exp_prefix, parser.VarName):
+                            fname = exp.exp_prefix.name.value.decode('latin1')
+                            if fname == 'class' or fname == 'subclass':
+                                counts[varname + ':constructor'] = get_token_count(v_.tokens)
+                                continue
+
+                counts['global'] = counts.get('global', 0) + get_token_count(v_.tokens)
+
+
     else:
         print(v)
 
@@ -84,7 +100,7 @@ def main(orig_args):
 
     g = game.Game.from_filename(args.infile)
 
-    print_token_counts(g.lua.root.stats, {}, "global")
+    print_token_counts(g.lua.root.stats, {})
 
     return 0
 
