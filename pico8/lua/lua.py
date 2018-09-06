@@ -40,7 +40,7 @@ PICO8_BUILTINS = {
 }
 
 
-class Lua():
+class Lua:
     """The Lua code for a game."""
 
     def __init__(self, version):
@@ -178,7 +178,7 @@ class Lua():
         self._parser = new_lua._parser
 
 
-class BaseASTWalker():
+class BaseASTWalker:
     """A base class for AST walkers."""
 
     def __init__(self, tokens, root, args=None):
@@ -248,7 +248,7 @@ class BaseASTWalker():
 
 
 def _default_node_handler(self, node):
-    '''Default node handler for BaseASTWalker that walks fields.'''
+    """Default node handler for BaseASTWalker that walks fields."""
     for field in node._fields:
         for t in self._walk(getattr(node, field)):
             yield t
@@ -836,7 +836,7 @@ class LuaASTEchoWriter(BaseLuaWriter):
             yield parts[-1]
 
 
-class MinifyNameFactory():
+class MinifyNameFactory:
     """Maps code names to generated short names."""
     NAME_CHARS = b'abcdefghijklmnopqrstuvwxyz'
     PRESERVED_NAMES = lexer.LUA_KEYWORDS | PICO8_BUILTINS

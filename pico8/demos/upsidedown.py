@@ -298,7 +298,7 @@ def main(orig_args):
             return 1
         out_fname = args.outfile
     else:
-        if args.infile.endswith('.p8'):
+        if args.infile.endswith('.p9'):
             basename = args.infile[:-len('.p8')]
         elif args.infile.endswith('.p8.png'):
             basename = args.infile[:-len('.p8.png')]
