@@ -8,18 +8,15 @@ __all__ = [
     'PICO8_BUILTINS'
 ]
 
-
 import re
 
-from .. import util
 from . import lexer
 from . import parser
-
+from .. import util
 
 PICO8_LUA_CHAR_LIMIT = 32768
 PICO8_LUA_TOKEN_LIMIT = 8192
 PICO8_LUA_COMPRESSED_CHAR_LIMIT = 15360
-
 
 PICO8_BUILTINS = {
     b'_init', b'_update', b'_update60', b'_draw',
@@ -37,14 +34,15 @@ PICO8_BUILTINS = {
     b'_update_buttons',  # announced for 30/60 fps compatibility but not yet used?
     b'count',  # deprecated function
     b'mapdraw',  # deprecated function
-    b'self',   # a special name in Lua OO
-    b'?',   # alias for "print"
+    b'self',  # a special name in Lua OO
+    b'?',  # alias for "print"
     b'__index'  # internal function sometimes used by carts
 }
 
 
 class Lua():
     """The Lua code for a game."""
+
     def __init__(self, version):
         """Initializer.
 
@@ -182,6 +180,7 @@ class Lua():
 
 class BaseASTWalker():
     """A base class for AST walkers."""
+
     def __init__(self, tokens, root, args=None):
         """Initializer.
 
@@ -264,6 +263,7 @@ for cname in dir(parser):
 
 class BaseLuaWriter(BaseASTWalker):
     """A base class for Lua writers."""
+
     def to_lines(self):
         """Generates lines of Lua source based on the parser output.
 
@@ -280,6 +280,7 @@ class LuaEchoWriter(BaseLuaWriter):
     This ignores the parser and just writes out the string values of the
     original token stream.
     """
+
     def to_lines(self):
         """
         Yields:
@@ -301,6 +302,7 @@ class LuaASTEchoWriter(BaseLuaWriter):
     The base implementation behaves identically to LuaEchoWriter. Subclasses
     can modify certain behaviors to transform the code based on the AST.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -760,7 +762,7 @@ class LuaASTEchoWriter(BaseLuaWriter):
         yield self._get_code_for_spaces(node)
         if not self._args.get('ignore_tokens'):
             if (self._tokens[self._pos].matches(lexer.TokSymbol(b',')) or
-                self._tokens[self._pos].matches(lexer.TokSymbol(b';'))):
+                    self._tokens[self._pos].matches(lexer.TokSymbol(b';'))):
                 yield self._get_text(node, self._tokens[self._pos].code)
         yield self._get_text(node, b'}')
 
@@ -828,7 +830,7 @@ class LuaASTEchoWriter(BaseLuaWriter):
         # Write the last line and any trailing spaces, as lines.
         last = b''.join(linebuf) + self._get_code_for_spaces(None)
         parts = last.split(b'\n')
-        for i in range(len(parts)-1):
+        for i in range(len(parts) - 1):
             yield parts[i] + b'\n'
         if parts[-1]:
             yield parts[-1]
@@ -869,6 +871,7 @@ class MinifyNameFactory():
 class LuaMinifyWriter(LuaASTEchoWriter):
     """Writes the Lua code to use a minimal number of characters.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._name_factory = MinifyNameFactory()
@@ -915,10 +918,10 @@ class LuaMinifyWriter(LuaASTEchoWriter):
             return b''
 
         spaces = b''.join(strs)
-        spaces = re.sub(br'\t', b' ', spaces)      # one tab -> one space
-        spaces = re.sub(br'\n +', b'\n', spaces)   # leading spaces -> none
-        spaces = re.sub(br' +\n', b'\n', spaces)   # trailing spaces -> none
-        spaces = re.sub(br'  +', b' ', spaces)     # multiple spaces -> one space
+        spaces = re.sub(br'\t', b' ', spaces)  # one tab -> one space
+        spaces = re.sub(br'\n +', b'\n', spaces)  # leading spaces -> none
+        spaces = re.sub(br' +\n', b'\n', spaces)  # trailing spaces -> none
+        spaces = re.sub(br'  +', b' ', spaces)  # multiple spaces -> one space
         spaces = re.sub(br'\n\n+', b'\n', spaces)  # multiple newlines -> one newline
 
         # TODO: Eliminate space between symbols and names/keywords on the same
@@ -1037,6 +1040,7 @@ class LuaMinifyTokenWriter(BaseLuaWriter):
 
     Unlike LuaMinifyWriter, this implementation just runs across the token stream and ignores the parser.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._name_factory = MinifyNameFactory()
@@ -1050,7 +1054,7 @@ class LuaMinifyTokenWriter(BaseLuaWriter):
         """
         for token in self._tokens:
             if (token.matches(lexer.TokComment) or
-                token.matches(lexer.TokSpace)):
+                    token.matches(lexer.TokSpace)):
                 continue
             elif token.matches(lexer.TokNewline):
                 # Preserve non-consecutive newlines. This is the easiest way to handle Pico-8's newline-dependent
@@ -1121,8 +1125,8 @@ class LuaFormatterTokenWriter(LuaASTEchoWriter):
             # Decrease the indentation level.
             if (any(token.matches(lexer.TokSymbol(s))
                     for s in (b')', b'}', b']')) or
-                any(token.matches(lexer.TokKeyword(k))
-                    for k in (b'end', b'until', b'elseif', b'else'))):
+                    any(token.matches(lexer.TokKeyword(k))
+                        for k in (b'end', b'until', b'elseif', b'else'))):
                 indent_level -= 1
 
             # Rules for spaces and newlines:
@@ -1177,8 +1181,8 @@ class LuaFormatterTokenWriter(LuaASTEchoWriter):
 
             if (any(token.matches(lexer.TokSymbol(s))
                     for s in (b'(', b'{', b'[')) or
-                any(token.matches(lexer.TokKeyword(k))
-                    for k in (b'do', b'repeat', b'then', b'else'))):
+                    any(token.matches(lexer.TokKeyword(k))
+                        for k in (b'do', b'repeat', b'then', b'else'))):
                 indent_level += 1
 
         yield b'\n'
