@@ -13,15 +13,64 @@ def _get_argparser():
     return parser
 
 
-class TokenCountASTWalker(lua.BaseASTWalker):
-    """Transforms Lua code to invert coordinates of drawing functions."""
+class SideEffectGraphWalker(lua.BaseASTWalker):
+    pass
 
+
+class UsageGraphWalker(lua.BaseASTWalker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.using = {}
+        self.used_by = {}
+        self.names = []
 
     def _walk_FunctionCall(self, node):
         print(node)
-        return
+        yield
+
+    def walk_children(self, node):
+        for field in node._fields:
+            for t in self._walk(getattr(node, field)):
+                yield t
+                self._post_walk(getattr(node, field))
+
+    def _walk_StatFunction(self, node):
+        name = ".".join([t.value.decode('latin1') for t in node.funcname.namepath])
+        if hasattr(node.funcname, 'methodname') and node.funcname.methodname is not None:
+            name += ":" + node.funcname.methodname.value.decode('latin1')
+        print("Entering function {}".format(name))
+        self.names.append(name)
+        for t in self.walk_children(node):
+            yield t
+
+    def _walk_StatAssignment(self, node):
+        varname = node.varlist.vars[0].name.value.decode('latin1')
+        self.names.append(varname)
+        print("Entering assignment {}".format(varname))
+        for t in self.walk_children(node):
+            yield t
+
+    def _post_walk_StatFunction(self, node):
+        print("Post Function {}".format(node))
+        fname = self.names.pop()
+        print("Leaving function {}".format(fname))
+
+    def _post_walk_StatAssignment(self, node):
+        print("Post Assignment {}".format(node))
+        varname = self.names.pop()
+        print("Leaving assignment {}".format(varname))
+
+    def _walk_FunctionName(self, node):
+        print(node)
+        yield
+
+    def _walk_VarName(self, node):
+        print(node)
+        yield
+
+    def _walk_NameList(self, node):
+        print(node)
+        yield
 
 
 def get_token_count(tokens):
@@ -81,8 +130,13 @@ def print_token_counts(v, counts):
         print(v)
 
     counts = [(k, counts[k]) for k in sorted(counts, key=counts.get, reverse=True)]
+    total = 0
     for k, v in counts:
+        total += v
         print("{}: {}".format(k, v))
+
+    print("-----")
+    print("total: {}".format(total))
 
 
 def main(orig_args):
@@ -100,7 +154,15 @@ def main(orig_args):
 
     g = game.Game.from_filename(args.infile)
 
-    print_token_counts(g.lua.root.stats, {})
+    # print_token_counts(g.lua.root.stats, {})
+
+    tree = UsageGraphWalker(g.lua.tokens, g.lua.root)
+    try:
+        it = tree.walk()
+        while True:
+            it.__next__()
+    except StopIteration:
+        pass
 
     return 0
 
