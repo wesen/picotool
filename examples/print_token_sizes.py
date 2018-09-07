@@ -26,12 +26,24 @@ class UsageGraphWalker(lua.BaseASTWalker):
         self.used_by = {}
         self.names = []
         self.depth = 0
+        self.current_name = None
 
     def walk_children(self, node):
         for field in node._fields:
             for t in self._walk(getattr(node, field)):
                 yield t
                 self._post_walk(getattr(node, field))
+
+    @staticmethod
+    def get_referenced_var_name(node: Union[parser.VarAttribute, parser.VarIndex, parser.VarName]):
+        if isinstance(node, parser.VarName):
+            return node.name.value.decode('latin1')
+        elif isinstance(node, parser.VarAttribute):
+            return UsageGraphWalker.get_var_name(node.exp_prefix)
+        elif isinstance(node, parser.VarIndex):
+            return UsageGraphWalker.get_var_name(node.exp_prefix)
+        else:
+            raise RuntimeError("Unsupported node type: {}".format(type(node)))
 
     @staticmethod
     def get_var_name(node: Union[parser.VarAttribute, parser.VarIndex, parser.VarName]):
@@ -47,19 +59,20 @@ class UsageGraphWalker(lua.BaseASTWalker):
     def lprint(self, str):
         print('{}{}'.format('   ' * self.depth, str))
 
-    def _walk_FunctionCall(self, node):
-        self.lprint(node)
-        for t in self.walk_children(node):
-            yield t
-
     def _walk_StatFunction(self, node):
         name = ".".join([t.value.decode('latin1') for t in node.funcname.namepath])
         if hasattr(node.funcname, 'methodname') and node.funcname.methodname is not None:
             name += ":" + node.funcname.methodname.value.decode('latin1')
         self.lprint("Entering function {}".format(name))
+
+        if self.depth == 0:
+            self.used_by[name] = {}
+            self.using[name] = {}
+            self.current_name = name
+
         self.names.append(name)
         self.depth += 1
-        for t in self.walk_children(node):
+        for t in self._walk(node.funcbody.block):
             yield t
 
     def _walk_StatAssignment(self, node: parser.StatAssignment):
@@ -67,32 +80,49 @@ class UsageGraphWalker(lua.BaseASTWalker):
         varname = UsageGraphWalker.get_var_name(node.varlist.vars[0])
         self.names.append(varname)
         self.lprint("Entering assignment {}".format(varname))
+
+        if self.depth == 0:
+            self.used_by[varname] = {}
+            self.using[varname] = {}
+            self.current_name = varname
+
         self.depth += 1
-        for t in self.walk_children(node):
+        for t in self._walk(node.explist):
             yield t
+
+    def _post_walk_StatAssignment(self, node: parser.StatAssignment):
+        varname = UsageGraphWalker.get_var_name(node.varlist.vars[0])
+        varname = self.names.pop()
+        self.lprint("Leaving assignment {}".format(varname))
+        self.depth -= 1
+        if self.depth == 0:
+            self.current_name = None
+
 
     def _post_walk_StatFunction(self, node: parser.StatFunction):
         self.lprint("Post Function {}".format(node))
         fname = self.names.pop()
         self.lprint("Leaving function {}".format(fname))
         self.depth -= 1
+        if self.depth == 0:
+            self.current_name = None
 
-    def _post_walk_StatAssignment(self, node: parser.StatAssignment):
-        self.lprint("Post Assignment {}".format(node))
-        varname = self.names.pop()
-        self.lprint("Leaving assignment {}".format(varname))
-        self.depth -= 1
+    def _walk_FunctionCall(self, node):
+        varname = UsageGraphWalker.get_var_name(node.exp_prefix)
+        self.lprint("Function Call {}".format(varname))
+        for t in self._walk(node.args):
+            yield t
 
     def _walk_FunctionName(self, node: parser.FunctionName):
         self.lprint("Function {}".format(node))
         yield
 
     def _walk_VarName(self, node):
-        self.lprint("Var {}".format(node))
+        self.lprint("Var {}".format(node.name.code.decode('latin1')))
         yield
 
     def _walk_NameList(self, node):
-        self.lprint("NameList {}".format(node))
+        self.lprint("NameList {}".format([t.code.decode('latin1') for t in node.names]))
         yield
 
 
@@ -187,6 +217,8 @@ def main(orig_args):
     except StopIteration:
         pass
 
+    print(tree.using)
+    print(tree.used_by)
     return 0
 
 
