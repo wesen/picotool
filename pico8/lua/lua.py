@@ -201,6 +201,7 @@ class BaseASTWalker:
         Yields:
           An appropriate value, or None.
         """
+        self._post_walk_token(token)
         if False:
             yield
 
@@ -226,15 +227,65 @@ class BaseASTWalker:
             if result is not None:
                 for t in result:
                     yield t
+            for t in self._post_walk(node):
+                yield t
         elif isinstance(node, lexer.Token):
             for t in self._walk_token(node):
                 yield t
+            self._post_walk(node)
         elif hasattr(node, '__len__') and type(node) != str:
             for item in node:
                 for t in self._walk(item):
                     yield t
         else:
             for t in self._walk_value(node):
+                yield t
+            self._post_walk(node)
+
+    def _post_walk_token(self, token):
+        """Post walk a field whose value is a token.
+
+        The default implementation does nothing.
+
+        Yields:
+          An appropriate value, or None.
+        """
+        if False:
+            yield
+
+    def _post_walk_value(self, value):
+        """Post walk a field whose value is a simple value (such as a bool).
+
+        The default implementation does nothing.
+
+        Yields:
+          An appropriate value, or None.
+        """
+        if False:
+            yield
+
+    def _post_walk(self, node):
+        """Post walk a node by calling its handler.
+
+        Yields:
+          Items returned or yielded by the handler.
+        """
+        if isinstance(node, parser.Node):
+            fname = '_post_walk_' + node.__class__.__name__
+            if hasattr(self, fname):
+                result = getattr(self, fname)(node)
+                if result is not None:
+                    for t in result:
+                        yield t
+        elif isinstance(node, lexer.Token):
+            for t in self._post_walk_token(node):
+                yield t
+        elif hasattr(node, '__len__') and type(node) != str:
+            for item in node:
+                for t in self._post_walk(item):
+                    yield t
+        else:
+            for t in self._post_walk_value(node):
                 yield t
 
     def walk(self):
@@ -252,6 +303,7 @@ def _default_node_handler(self, node):
     for field in node._fields:
         for t in self._walk(getattr(node, field)):
             yield t
+            self._post_walk(getattr(node, field))
 
 
 # For each node type, create an empty node handler in the base class.
