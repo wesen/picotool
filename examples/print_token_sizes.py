@@ -1,4 +1,5 @@
 import argparse
+from typing import Union
 
 from pico8 import util
 from pico8.game import game
@@ -17,16 +18,14 @@ class SideEffectGraphWalker(lua.BaseASTWalker):
     pass
 
 
+# noinspection PyPep8Naming,PyMethodMayBeStatic
 class UsageGraphWalker(lua.BaseASTWalker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.using = {}
         self.used_by = {}
         self.names = []
-
-    def _walk_FunctionCall(self, node):
-        print(node)
-        yield
+        self.depth = 0
 
     def walk_children(self, node):
         for field in node._fields:
@@ -34,42 +33,66 @@ class UsageGraphWalker(lua.BaseASTWalker):
                 yield t
                 self._post_walk(getattr(node, field))
 
+    @staticmethod
+    def get_var_name(node: Union[parser.VarAttribute, parser.VarIndex, parser.VarName]):
+        if isinstance(node, parser.VarName):
+            return node.name.value.decode('latin1')
+        elif isinstance(node, parser.VarAttribute):
+            return '{}.{}'.format(UsageGraphWalker.get_var_name(node.exp_prefix), node.attr_name.value.decode('latin1'))
+        elif isinstance(node, parser.VarIndex):
+            return '{}[{}]'.format(UsageGraphWalker.get_var_name(node.exp_prefix), node.exp_index)
+        else:
+            raise RuntimeError("Unsupported node type: {}".format(type(node)))
+
+    def lprint(self, str):
+        print('{}{}'.format('   ' * self.depth, str))
+
+    def _walk_FunctionCall(self, node):
+        self.lprint(node)
+        for t in self.walk_children(node):
+            yield t
+
     def _walk_StatFunction(self, node):
         name = ".".join([t.value.decode('latin1') for t in node.funcname.namepath])
         if hasattr(node.funcname, 'methodname') and node.funcname.methodname is not None:
             name += ":" + node.funcname.methodname.value.decode('latin1')
-        print("Entering function {}".format(name))
+        self.lprint("Entering function {}".format(name))
         self.names.append(name)
+        self.depth += 1
         for t in self.walk_children(node):
             yield t
 
-    def _walk_StatAssignment(self, node):
-        varname = node.varlist.vars[0].name.value.decode('latin1')
+    def _walk_StatAssignment(self, node: parser.StatAssignment):
+        # VarAttribute or VarName
+        varname = UsageGraphWalker.get_var_name(node.varlist.vars[0])
         self.names.append(varname)
-        print("Entering assignment {}".format(varname))
+        self.lprint("Entering assignment {}".format(varname))
+        self.depth += 1
         for t in self.walk_children(node):
             yield t
 
-    def _post_walk_StatFunction(self, node):
-        print("Post Function {}".format(node))
+    def _post_walk_StatFunction(self, node: parser.StatFunction):
+        self.lprint("Post Function {}".format(node))
         fname = self.names.pop()
-        print("Leaving function {}".format(fname))
+        self.lprint("Leaving function {}".format(fname))
+        self.depth -= 1
 
-    def _post_walk_StatAssignment(self, node):
-        print("Post Assignment {}".format(node))
+    def _post_walk_StatAssignment(self, node: parser.StatAssignment):
+        self.lprint("Post Assignment {}".format(node))
         varname = self.names.pop()
-        print("Leaving assignment {}".format(varname))
+        self.lprint("Leaving assignment {}".format(varname))
+        self.depth -= 1
 
-    def _walk_FunctionName(self, node):
-        print(node)
+    def _walk_FunctionName(self, node: parser.FunctionName):
+        self.lprint("Function {}".format(node))
         yield
 
     def _walk_VarName(self, node):
-        print(node)
+        self.lprint("Var {}".format(node))
         yield
 
     def _walk_NameList(self, node):
-        print(node)
+        self.lprint("NameList {}".format(node))
         yield
 
 
